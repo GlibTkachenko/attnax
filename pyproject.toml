@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "attnax"
+version = "0.1.0"
+description = "Composable attention and transformer components for JAX."
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.9"
+authors = [
+    {name = "Glib Tkachenko", email = "gtkachenko7@gmail.com"},
+]
+keywords = [
+    "python",
+    "jax",
+    "machine learning",
+    "transformers",
+    "attention",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "jax>=0.4.0",
+    "flax>=0.8.0",
+    "optax>=0.1.0",
+]
+
+# [project.urls]
+# homepage = "https://github.com/glibtkachenko/attnax"
+# repository = "https://github.com/glibtkachenko/attnax"
+# documentation = "https://github.com/glibtkachenko/attnax#readme"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["attnax*"]
+exclude = ["*_test.py"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "F",    # Pyflakes
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+]
+ignore = [
+    "E731",  # lambda assignments allowed
+]
