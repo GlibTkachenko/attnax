@@ -50,7 +50,7 @@ cd attnax
 pip install -e .
 ```
 
-Requires Python 3.9+, JAX 0.4.0+, Flax 0.8.0+, and Optax 0.1.0+.
+Requires Python 3.9+, JAX 0.8.0+, Flax 0.12.0+, and Optax 0.2.6+.
 
 ## Quick Start
 
@@ -68,7 +68,7 @@ config = TransformerConfig(
     num_layers=6,
     d_ff=2048,
     dropout_rate=0.1,
-    max_seq_len=512,
+    max_len=512,
 )
 
 rngs = nnx.Rngs(42)
@@ -127,11 +127,35 @@ config = TransformerConfig(
     num_layers=6,            # Number of encoder/decoder layers
     d_ff=2048,               # Feed-forward dimension
     dropout_rate=0.1,        # Dropout probability
-    max_seq_len=512,         # Maximum sequence length
+    max_len=512,             # Maximum sequence length
     activation='gelu',       # Activation function ('gelu', 'relu', 'swish')
     use_bias=True,           # Whether to use bias in linear layers
     layer_norm_eps=1e-6,     # Layer normalization epsilon
     pad_token_id=0,          # Padding token ID
+    attention_type='standard',  # Attention implementation ('standard', 'memory_efficient', 'flash', 'lite')
+    attention_block_size=512,   # Block size for memory-efficient and flash attention
+)
+```
+
+#### Attention implementations
+
+The library includes multiple attention implementations:
+
+- **standard** - Standard scaled dot-product attention. O(n²) memory complexity.
+- **memory_efficient** - Block-wise computation reducing memory to O(n). Suitable for long sequences.
+- **flash** - Hardware-optimized implementation using `jax.nn.dot_product_attention`. Falls back to memory-efficient on TPU.
+- **lite** - Element-wise product (Q ⊙ K) with learnable gating. Designed for algorithmic tasks requiring length extrapolation.
+
+```python
+from attnax import AttentionType
+
+config = TransformerConfig(
+    vocab_size=32000,
+    d_model=512,
+    num_heads=8,
+    num_layers=6,
+    attention_type=AttentionType.MEMORY_EFFICIENT,
+    attention_block_size=512,
 )
 ```
 
@@ -198,7 +222,7 @@ output = ffn(x, deterministic=True)
 Token embedding layer.
 
 ```python
-embedding = TokenEmbedding(config.vocab_size, config.d_model, rngs)
+embedding = TokenEmbedding(rngs, config.vocab_size, config.d_model)
 
 embedded = embedding(input_ids)
 # Returns: (batch, seq_len, d_model)
@@ -209,7 +233,7 @@ embedded = embedding(input_ids)
 Sinusoidal positional encoding.
 
 ```python
-pos_encoding = PositionalEncoding(config.d_model, config.max_seq_len)
+pos_encoding = PositionalEncoding(config.max_len, config.d_model)
 
 encoded = pos_encoding(x)
 # Returns: (batch, seq_len, d_model)
@@ -272,12 +296,12 @@ Build custom models by composing components:
 
 ```python
 import flax.nnx as nnx
-from jaxtransformer import EncoderBlock, TokenEmbedding, PositionalEncoding
+from attnax import EncoderBlock, TokenEmbedding, PositionalEncoding
 
 class CustomTransformer(nnx.Module):
     def __init__(self, rngs, config):
-        self.embedding = TokenEmbedding(config.vocab_size, config.d_model, rngs)
-        self.pos_encoding = PositionalEncoding(config.d_model, config.max_seq_len)
+        self.embedding = TokenEmbedding(rngs, config.vocab_size, config.d_model)
+        self.pos_encoding = PositionalEncoding(config.max_len, config.d_model)
 
         # Custom layer configuration
         self.blocks = nnx.List([
