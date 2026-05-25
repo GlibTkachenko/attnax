@@ -99,6 +99,7 @@ def test_training_loop():
         num_layers=2,
         d_ff=512,
         dropout_rate=0.1,
+        ff_activation="relu",
     )
 
     print("\nConfiguration:")
@@ -130,13 +131,13 @@ def test_training_loop():
     final_loss, final_accuracy = eval_step(model, input_ids, labels, padding_mask)
     assert final_loss < 10.0, f"Loss too high: {final_loss}"
     assert final_accuracy >= 0.0, f"Invalid accuracy: {final_accuracy}"
-    assert optimizer.step.value == num_steps, (
-        f"Wrong step count: {optimizer.step.value}"
+    assert optimizer.step[...] == num_steps, (
+        f"Wrong step count: {optimizer.step[...]}"
     )
 
     print("\n" + "=" * 70)
     print("✓ Training completed")
-    print(f"  Final step: {optimizer.step.value}")
+    print(f"  Final step: {optimizer.step[...]}")
     print(f"  Final loss: {final_loss:.6f}")
     print(f"  Final accuracy: {final_accuracy:.4f}")
     print("=" * 70)
