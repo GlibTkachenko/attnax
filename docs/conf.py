@@ -23,8 +23,8 @@ import attnax  # noqa: E402
 # -- Project information -----------------------------------------------------
 
 project = "Attnax"
-author = "Glib Tkachenko"
-copyright = "2025-2026, Glib Tkachenko"
+author = "The Attnax authors"
+copyright = "2025, The Attnax Authors"
 release = attnax.__version__
 version = release
 
