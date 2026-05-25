@@ -1,0 +1,27 @@
+/* Landing-page widening.
+ *
+ * The index page hides its secondary (right-hand) sidebar via the
+ * ``:html_theme.sidebar_secondary.remove:`` file directive, but the article
+ * column still keeps its narrow 60em reading width.  These rules let the
+ * article expand into the freed space, but only on pages that include the
+ * ``attnax-landing`` marker div (emitted by index.rst via ``raw:: html``).
+ * Other pages keep the comfortable reading width.
+ *
+ * The selectors mirror the theme's compound selectors (e.g.
+ * ``.bd-content .bd-article-container``) so specificity matches, and the
+ * overrides are marked ``!important`` because the same trick is needed by
+ * JAX and other large book-theme sites.
+ */
+
+body:has(.attnax-landing) .bd-page-width {
+  max-width: none !important;
+}
+
+body:has(.attnax-landing) .bd-content .bd-article-container {
+  max-width: none !important;
+  width: 100% !important;
+}
+
+body:has(.attnax-landing) .bd-content .bd-article-container .bd-article {
+  padding-inline: 2rem;
+}
