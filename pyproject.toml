@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "attnax"
-version = "0.1.0"
+version = "0.2.0"
 description = "Composable attention and transformer components for JAX."
 readme = "README.md"
 license = {text = "Apache-2.0"}
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
     {name = "Glib Tkachenko", email = "gtkachenko7@gmail.com"},
 ]
@@ -27,7 +27,6 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -35,19 +34,26 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "jax>=0.8.0",
-    "flax>=0.12.0",
-    "optax>=0.2.6",
+    "jax>=0.10.0",
+    "flax>=0.12.7"
 ]
 
 [project.urls]
 homepage = "https://github.com/glibtkachenko/attnax"
 repository = "https://github.com/glibtkachenko/attnax"
-documentation = "https://github.com/glibtkachenko/attnax#readme"
+documentation = "https://attnax.readthedocs.io"
 
 [project.optional-dependencies]
 test = [
     "pytest>=7.0",
+    "optax>=0.2.8"
+]
+docs = [
+    "sphinx>=7.0",
+    "sphinx-book-theme>=1.1",
+    "sphinx-design>=0.5",
+    "myst-nb>=1.1",
+    "linkify-it-py>=2.0",
 ]
 
 [tool.setuptools.packages.find]
