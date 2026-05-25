@@ -1,48 +1,40 @@
 # Attnax
 
-Composable attention and transformer components for JAX.
+Attention kernels and transformer components for JAX.
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/) [![JAX](https://img.shields.io/badge/JAX-latest-orange.svg)](https://github.com/google/jax) [![Flax NNX](https://img.shields.io/badge/Flax-NNX-green.svg)](https://flax.readthedocs.io/) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/) [![JAX](https://img.shields.io/badge/JAX-latest-orange.svg)](https://github.com/google/jax) [![Flax NNX](https://img.shields.io/badge/Flax-NNX-green.svg)](https://flax.readthedocs.io/) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-[Installation](#installation) | [Quick Start](#quick-start) | [API Reference](#api-reference) | [Examples](examples/)
+[Installation](#installation) | [Quick start](#quick-start) | [Documentation](https://attnax.readthedocs.io) | [Examples](examples/) | [Citation](#citing-attnax)
 
-## What is Attnax?
+## Overview
 
-Attnax is a library of transformer primitives built on JAX and Flax NNX. It provides modular, composable components for building transformer architectures without rewriting standard building blocks from scratch.
+Attnax is built on [JAX](https://jax.readthedocs.io/) and
+[Flax](https://flax.readthedocs.io/) and provides:
 
-The library includes:
-- Multi-head attention (self and cross)
-- Position-wise feed-forward networks
-- Token and positional embeddings (sinusoidal)
-- Encoder and decoder blocks
-- Masking utilities (padding, causal)
+- Attention kernels as pure JAX functions sharing a single
+  `AttentionFn` protocol: `standard_attention`,
+  `memory_efficient_attention`, `flash_attention`, `linear_attention`,
+  `ring_attention`, `pallas_flash_attention`, `paged_attention`,
+  `lite_attention`.
+- `ScoreMod` / `MaskMod` constructors for ALiBi, sliding window,
+  prefix-LM, document masks, and arbitrary additive biases — composed
+  with `compose_score_mods`.
+- `MultiHeadAttention` with MHA, GQA, MQA, RoPE, sliding window, and
+  optional contiguous or paged KV caching (`KVLayerCache`,
+  `PagedKVCache`).
+- `EncoderBlock`, `DecoderBlock`, `TransformerEncoder`,
+  `TransformerDecoder`, `VisionTransformer`, `FeedForward`,
+  `MixtureOfExperts`, `RMSNorm`, RoPE and the usual positional
+  embeddings.
 
-All components are implemented using Flax NNX with full type annotations and can be composed to build custom transformer architectures. JAX transformations (`jit`, `vmap`, `grad`) work naturally with all modules.
-
-```python
-import jax.numpy as jnp
-import flax.nnx as nnx
-from attnax import TransformerConfig, TransformerEncoder
-
-config = TransformerConfig(
-    vocab_size=32000,
-    d_model=512,
-    num_heads=8,
-    num_layers=6,
-)
-
-model = TransformerEncoder(nnx.Rngs(42), config)
-output = model(jnp.ones((2, 10), dtype=jnp.int32), deterministic=True)
-print(output.shape)  # (2, 10, 512)
-```
-
+Documentation on Attnax can be found at [attnax.readthedocs.io](https://attnax.readthedocs.io).
 ## Installation
 
 ```bash
 pip install attnax
 ```
 
-Or install from source:
+From source:
 
 ```bash
 git clone https://github.com/glibtkachenko/attnax.git
@@ -50,327 +42,72 @@ cd attnax
 pip install -e .
 ```
 
-Requires Python 3.9+, JAX 0.8.0+, Flax 0.12.0+, and Optax 0.2.6+.
+Requires Python 3.10+, JAX 0.10.0+, and Flax 0.12.7+.
 
-## Quick Start
+## Quick start
 
-### Basic encoder
+Attention kernels are pure JAX functions:
 
 ```python
-import jax.numpy as jnp
+import jax, jax.numpy as jnp
+from attnax import standard_attention
+
+q = jax.random.normal(jax.random.key(0), (1, 4, 64, 32))
+k = jax.random.normal(jax.random.key(1), (1, 4, 64, 32))
+v = jax.random.normal(jax.random.key(2), (1, 4, 64, 32))
+out = standard_attention(q, k, v)
+```
+
+Biases compose as `ScoreMod`s:
+
+```python
+from attnax import alibi_mod, compose_score_mods, sliding_window_mod
+
+mod = compose_score_mods(
+    alibi_mod(num_heads=4),
+    sliding_window_mod(window_size=128, causal=True),
+)
+out = standard_attention(q, k, v, score_mod=mod)
+```
+
+Any kernel matching `AttentionFn` plugs into `MultiHeadAttention`:
+
+```python
 import flax.nnx as nnx
+from attnax import MultiHeadAttention, pallas_flash_attention
+
+attn = MultiHeadAttention(
+    nnx.Rngs(0),
+    num_heads=8,
+    in_features=512,
+    attention_fn=pallas_flash_attention,
+)
+```
+
+A full transformer stack:
+
+```python
 from attnax import TransformerConfig, TransformerEncoder
 
 config = TransformerConfig(
-    vocab_size=32000,
-    d_model=512,
-    num_heads=8,
-    num_layers=6,
-    d_ff=2048,
-    dropout_rate=0.1,
-    max_len=512,
+    vocab_size=32000, d_model=512, num_heads=8, num_layers=6,
 )
-
-rngs = nnx.Rngs(42)
-model = TransformerEncoder(rngs, config)
-
-input_ids = jnp.ones((2, 10), dtype=jnp.int32)
-output = model(input_ids, deterministic=True)  # (2, 10, 512)
+model = TransformerEncoder(nnx.Rngs(0), config)
+y = model(jnp.ones((2, 16), dtype=jnp.int32), deterministic=True)
 ```
 
-### With padding masks
+See the [getting-started notebook](docs/getting_started.ipynb) for a
+walkthrough covering score-mods, custom kernels, KV caching, paged
+caching, Mixture-of-Experts, the Vision Transformer, and training.
 
-```python
-from attnax import make_padding_mask
+## Citing Attnax
 
-input_ids = jnp.array([[1, 2, 3, 0, 0], [4, 5, 6, 7, 8]])
-padding_mask = make_padding_mask(input_ids, pad_token_id=0)
-
-output = model(input_ids, padding_mask=padding_mask, deterministic=True)
+```bibtex
+@software{attnax2025github,
+  author = {Glib Tkachenko},
+  title = {{Attnax}: Attention Kernels and Transformer Components for {JAX}},
+  url = {https://github.com/glibtkachenko/attnax},
+  version = {0.2.0},
+  year = {2025},
+}
 ```
-
-### Training
-
-```python
-import optax
-
-optimizer = nnx.Optimizer(model, optax.adamw(1e-4), wrt=nnx.Param)
-
-def train_step(model, optimizer, batch):
-    def loss_fn(model):
-        logits = model(batch['input_ids'], deterministic=False)
-        return optax.softmax_cross_entropy_with_integer_labels(
-            logits, batch['labels']
-        ).mean()
-
-    loss, grads = nnx.value_and_grad(loss_fn)(model)
-    optimizer.update(model=model, grads=grads)
-    return loss
-
-for batch in dataloader:
-    loss = train_step(model, optimizer, batch)
-```
-
-## API Reference
-
-### Configuration
-
-#### `TransformerConfig`
-
-Dataclass containing all transformer hyperparameters.
-
-```python
-config = TransformerConfig(
-    vocab_size=32000,        # Size of vocabulary
-    d_model=512,             # Model dimension
-    num_heads=8,             # Number of attention heads
-    num_layers=6,            # Number of encoder/decoder layers
-    d_ff=2048,               # Feed-forward dimension
-    dropout_rate=0.1,        # Dropout probability
-    max_len=512,             # Maximum sequence length
-    activation='gelu',       # Activation function ('gelu', 'relu', 'swish')
-    use_bias=True,           # Whether to use bias in linear layers
-    layer_norm_eps=1e-6,     # Layer normalization epsilon
-    pad_token_id=0,          # Padding token ID
-    attention_type='standard',  # Attention implementation ('standard', 'memory_efficient', 'flash', 'lite')
-    attention_block_size=512,   # Block size for memory-efficient and flash attention
-)
-```
-
-#### Attention implementations
-
-The library includes multiple attention implementations:
-
-- **standard** - Standard scaled dot-product attention. O(n²) memory complexity.
-- **memory_efficient** - Block-wise computation reducing memory to O(n). Suitable for long sequences.
-- **flash** - Hardware-optimized implementation using `jax.nn.dot_product_attention`. Falls back to memory-efficient on TPU.
-- **lite** - Element-wise product (Q ⊙ K) with learnable gating. Designed for algorithmic tasks requiring length extrapolation.
-
-```python
-from attnax import AttentionType
-
-config = TransformerConfig(
-    vocab_size=32000,
-    d_model=512,
-    num_heads=8,
-    num_layers=6,
-    attention_type=AttentionType.MEMORY_EFFICIENT,
-    attention_block_size=512,
-)
-```
-
-### Core Modules
-
-#### `TransformerEncoder`
-
-Complete transformer encoder with token embeddings, positional encoding, and stacked encoder blocks.
-
-```python
-encoder = TransformerEncoder(rngs, config)
-
-output = encoder(
-    input_ids,                    # Shape: (batch, seq_len)
-    padding_mask=None,            # Shape: (batch, 1, 1, seq_len)
-    deterministic=True,           # Disable dropout for inference
-)
-# Returns: (batch, seq_len, d_model)
-```
-
-#### `EncoderBlock`
-
-Single transformer encoder block with self-attention and feed-forward network.
-
-```python
-block = EncoderBlock(rngs, config)
-
-output = block(
-    x,                            # Shape: (batch, seq_len, d_model)
-    padding_mask=None,            # Shape: (batch, 1, 1, seq_len)
-    deterministic=True,
-)
-# Returns: (batch, seq_len, d_model)
-```
-
-#### `MultiHeadAttentionLayer`
-
-Multi-head attention with support for both self-attention and cross-attention.
-
-```python
-attention = MultiHeadAttentionLayer(rngs, config)
-
-# Self-attention
-output = attention(x, deterministic=True)
-
-# Cross-attention
-output = attention(x, context=encoder_output, mask=mask, deterministic=True)
-# Returns: (batch, seq_len, d_model)
-```
-
-#### `FeedForward`
-
-Position-wise feed-forward network with configurable activation.
-
-```python
-ffn = FeedForward(rngs, config)
-
-output = ffn(x, deterministic=True)
-# Returns: (batch, seq_len, d_model)
-```
-
-#### `TokenEmbedding`
-
-Token embedding layer.
-
-```python
-embedding = TokenEmbedding(rngs, config.vocab_size, config.d_model)
-
-embedded = embedding(input_ids)
-# Returns: (batch, seq_len, d_model)
-```
-
-#### `PositionalEncoding`
-
-Sinusoidal positional encoding.
-
-```python
-pos_encoding = PositionalEncoding(config.max_len, config.d_model)
-
-encoded = pos_encoding(x)
-# Returns: (batch, seq_len, d_model)
-```
-
-### Masking Utilities
-
-#### `make_padding_mask`
-
-Creates padding mask from input token IDs.
-
-```python
-mask = make_padding_mask(input_ids, pad_token_id=0)
-# Returns: (batch, 1, 1, seq_len) boolean mask
-```
-
-#### `make_causal_mask`
-
-Creates causal mask for autoregressive attention.
-
-```python
-mask = make_causal_mask(seq_len)
-# Returns: (1, 1, seq_len, seq_len) boolean mask
-```
-
-#### `combine_masks`
-
-Combines multiple masks via logical AND.
-
-```python
-combined = combine_masks(padding_mask, causal_mask)
-# Returns: Combined boolean mask
-```
-
-## Components
-
-### Core modules
-
-- `TransformerEncoder` - Complete encoder with embeddings and stacked blocks
-- `EncoderBlock` - Single encoder layer with self-attention and FFN
-- `DecoderBlock` - Single decoder layer with self-attention, cross-attention, and FFN
-- `MultiHeadAttentionLayer` - Multi-head attention (self or cross)
-- `FeedForward` - Position-wise feed-forward network
-- `TokenEmbedding` - Token embedding layer
-- `PositionalEncoding` - Sinusoidal positional encoding
-
-### Masking utilities
-
-- `make_padding_mask` - Creates padding masks from token IDs
-- `make_causal_mask` - Creates causal masks for autoregressive decoding
-- `combine_masks` - Combines multiple masks via logical AND
-
-See the [API Reference](#api-reference) section for detailed documentation.
-
-## Advanced usage
-
-### Custom architectures
-
-Build custom models by composing components:
-
-```python
-import flax.nnx as nnx
-from attnax import EncoderBlock, TokenEmbedding, PositionalEncoding
-
-class CustomTransformer(nnx.Module):
-    def __init__(self, rngs, config):
-        self.embedding = TokenEmbedding(rngs, config.vocab_size, config.d_model)
-        self.pos_encoding = PositionalEncoding(config.max_len, config.d_model)
-
-        # Custom layer configuration
-        self.blocks = nnx.List([
-            EncoderBlock(rngs, config) for _ in range(config.num_layers)
-        ])
-
-        self.output_projection = nnx.Linear(config.d_model, config.vocab_size, rngs=rngs)
-
-    def __call__(self, input_ids, deterministic=True):
-        x = self.embedding(input_ids)
-        x = self.pos_encoding(x)
-
-        for block in self.blocks:
-            x = block(x, deterministic=deterministic)
-
-        return self.output_projection(x)
-```
-
-### Model serialization
-
-Save and load model checkpoints:
-
-```python
-import orbax.checkpoint as ocp
-
-checkpointer = ocp.StandardCheckpointer()
-state = nnx.state(model)
-checkpointer.save(f'checkpoints/step_{step}', state)
-
-restored_state = checkpointer.restore('checkpoints/step_1000')
-nnx.update(model, restored_state)
-```
-
-### Multi-device training
-
-Use JAX's `pmap` for data parallelism:
-
-```python
-@jax.pmap
-def parallel_train_step(model, batch):
-    def loss_fn(model):
-        logits = model(batch['input_ids'], deterministic=False)
-        return compute_loss(logits, batch['labels'])
-
-    loss, grads = nnx.value_and_grad(loss_fn)(model)
-    grads = jax.lax.pmean(grads, axis_name='batch')
-    optimizer.update(model=model, grads=grads)
-    return loss
-```
-
-## Testing
-
-Run the test suite:
-
-```bash
-python -m pytest tests/
-```
-
-Individual test modules:
-
-```bash
-python -m tests.test_components
-python -m tests.test_training
-```
-
-## Contributing
-
-Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## License
-
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
