@@ -126,6 +126,7 @@ html_theme_options = {
 }
 html_static_path = ["_static"]
 html_css_files: list[str] = ["style.css"]
+templates_path = ["_templates"]
 
 # -- Suppress duplicate dataclass / enum member entries ----------------------
 #
