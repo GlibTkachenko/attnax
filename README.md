@@ -1,4 +1,4 @@
-# Attnax
+# Attnax: Attention for JAX
 
 Attention kernels and transformer components for JAX.
 
